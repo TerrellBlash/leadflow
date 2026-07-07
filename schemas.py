@@ -19,5 +19,17 @@ class LeadOut(BaseModel):
     status: str
     created_at: datetime
     
+class WorkflowRunOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    lead_id: int
+    status: str
+    current_step: str | None
+    started_at: datetime
+    finished_at: datetime | None
+    error_message: str | None
+
+
   
 

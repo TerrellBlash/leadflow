@@ -1,9 +1,9 @@
 from fastapi import Depends, FastAPI, HTTPException
 from sqlalchemy.orm import Session
-
+from orchestrator import run_workflow
 from database import Base, SessionLocal, engine
-from models import Lead
-from schemas import LeadIn, LeadOut
+from models import Lead, WorkflowRun
+from schemas import LeadIn, LeadOut, WorkflowRunOut
 
 Base.metadata.create_all(bind=engine)
 
@@ -27,6 +27,7 @@ def create_lead(payload: LeadIn, db: Session = Depends(get_db)):
     db.add(lead)
     db.commit()
     db.refresh(lead)
+    run_workflow(lead, db)
     return lead
 
 
@@ -34,6 +35,9 @@ def create_lead(payload: LeadIn, db: Session = Depends(get_db)):
 def list_leads(db: Session = Depends(get_db)):
     return db.query(Lead).all()
 
+@app.get("/workflow_runs", response_model=list[WorkflowRunOut])
+def list_workflow_runs(db: Session = Depends(get_db)):
+    return db.query(WorkflowRun).all()
 
- 
+
  
