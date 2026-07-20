@@ -1,3 +1,7 @@
+import os
+
+import requests
+
 from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
@@ -16,10 +20,20 @@ def tag_priority(lead: Lead, db: Session) -> None:
         lead.status = "warm"
     db.commit()
 
+def notify_slack(lead: Lead, db: Session ) -> None:
+    webhook_url = os.environ.get("SLACK_WEBHOOK_URL")
+    if not webhook_url:
+        raise ValueError("SLACK_WEBHOOK_URL is not set")
 
+    message = f"New {lead.status} lead: {lead.name} from {lead.company} ({lead.email})"
+    response = requests.post(webhook_url, json={"text":message}, timeout=10)
+    response.raise_for_status()    
+
+    
 WORKFLOW_STEPS = [
     ("log_lead", log_lead),
     ("tag_priority", tag_priority),
+    ("notify_slack", notify_slack),
 ]
 
 

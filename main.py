@@ -1,9 +1,17 @@
+from dotenv import load_dotenv
+
+load_dotenv()
+
 from fastapi import Depends, FastAPI, HTTPException
 from sqlalchemy.orm import Session
+
 from orchestrator import run_workflow
 from database import Base, SessionLocal, engine
 from models import Lead, WorkflowRun
 from schemas import LeadIn, LeadOut, WorkflowRunOut
+
+
+load_dotenv()
 
 Base.metadata.create_all(bind=engine)
 
