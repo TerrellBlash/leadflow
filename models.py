@@ -25,3 +25,14 @@ class WorkflowRun(Base):
     finished_at = Column(DateTime, nullable=True)
     error_message = Column(String, nullable=True)
 
+class Draft(Base):
+    __tablename__ = "drafts"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    lead_id = Column(Integer, ForeignKey("leads.id"), nullable=False)
+    content = Column(String, nullable=False)
+    model = Column(String, nullable=False)
+    prompt_version = Column(String, nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    
+    

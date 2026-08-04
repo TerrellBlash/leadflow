@@ -30,6 +30,14 @@ class WorkflowRunOut(BaseModel):
     finished_at: datetime | None
     error_message: str | None
 
-
-  
-
+class DraftOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+ 
+    id: int
+    lead_id: int
+    content: str
+    model: str
+    prompt_version: str
+    created_at: datetime
+    
+    
