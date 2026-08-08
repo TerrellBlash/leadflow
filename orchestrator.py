@@ -4,9 +4,27 @@ import requests
 
 from datetime import datetime, timezone
 
+from anthropic import Anthropic
+
 from sqlalchemy.orm import Session
 
-from models import Lead, WorkflowRun
+from models import Draft, Lead, WorkflowRun
+
+PROMPT_VERSION = "v1"
+DRAFT_MODEL = "claude-haiku-4-5-20251001"
+
+OUTREACH_PROMPT = """You are writing a short cold outreach email on behalf of a B2B software company.
+
+Lead details:
+- Name: {name}
+- Company: {company}
+- Priority: {status}
+
+Write a 3-4 sentence email to this person. Rules:
+- Reference their company by name once, naturally
+- No buzzwords, no "I hope this finds you well", no exclamation marks
+- End with one specific, low-commitment question
+- Output ONLY the email body. No subject line, no signature, no preamble."""
 
 
 def log_lead(lead: Lead, db: Session) -> None:
@@ -19,6 +37,7 @@ def tag_priority(lead: Lead, db: Session) -> None:
     else: 
         lead.status = "warm"
     db.commit()
+    
 
 def notify_slack(lead: Lead, db: Session ) -> None:
     webhook_url = os.environ.get("SLACK_WEBHOOK_URL")
@@ -28,14 +47,42 @@ def notify_slack(lead: Lead, db: Session ) -> None:
     message = f"New {lead.status} lead: {lead.name} from {lead.company} ({lead.email})"
     response = requests.post(webhook_url, json={"text":message}, timeout=10)
     response.raise_for_status()    
+    
 
+def draft_outreach(lead: Lead, db: Session) -> None:
+    client = Anthropic()
+    
+    prompt = OUTREACH_PROMPT.format(
+        name=lead.name,
+        company=lead.company,
+        status=lead.status,
+    )
+
+    response = client.messages.create(
+        model=DRAFT_MODEL,
+        max_tokens=300,
+        messages=[{"role": "user", "content": prompt}],
+    
+    )
+    email_text = response.content[0].text
+    
+    draft = Draft(
+        lead_id=lead.id,
+        content=email_text,
+        model=DRAFT_MODEL,
+        prompt_version=PROMPT_VERSION,
+    )
+    db.add(draft)
+    db.commit()
     
 WORKFLOW_STEPS = [
     ("log_lead", log_lead),
     ("tag_priority", tag_priority),
+    ("draft_outreach", draft_outreach),
     ("notify_slack", notify_slack),
 ]
 
+    
 
 def run_workflow(lead: Lead, db: Session) -> WorkflowRun:
     run = WorkflowRun(lead_id=lead.id, status="running")
