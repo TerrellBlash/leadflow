@@ -24,10 +24,21 @@ def get_db():
         yield db
     finally:
         db.close()
+        
+        
+@app.get("/")
+def root():
+    return {
+        "service": "leadflow",
+        "status": "ok",
+        "docs": "/docs",
+    }
+    
     
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
 
 @app.post("/leads", response_model=LeadOut, status_code=201)
 def create_lead(payload: LeadIn, db: Session = Depends(get_db)):
@@ -42,6 +53,7 @@ def create_lead(payload: LeadIn, db: Session = Depends(get_db)):
 @app.get("/leads", response_model=list[LeadOut])
 def list_leads(db: Session = Depends(get_db)):
     return db.query(Lead).all()
+
 
 @app.get("/workflow_runs", response_model=list[WorkflowRunOut])
 def list_workflow_runs(db: Session = Depends(get_db)):
