@@ -1,0 +1,9 @@
+[     717ms] [WARNING] Warning: fragment with name ElementTile already exists.
+graphql-tag enforces all fragment names across your application to be unique; read more about
+this in the docs: http://dev.apollodata.com/core/fragments.html#unique-names @ https://www.cosmos.so/_next/static/chunks/1fnj5netqckvr.js:11
+[     717ms] [WARNING] Warning: fragment with name ElementMedia already exists.
+graphql-tag enforces all fragment names across your application to be unique; read more about
+this in the docs: http://dev.apollodata.com/core/fragments.html#unique-names @ https://www.cosmos.so/_next/static/chunks/1fnj5netqckvr.js:11
+[     717ms] [WARNING] Warning: fragment with name ElementSource already exists.
+graphql-tag enforces all fragment names across your application to be unique; read more about
+this in the docs: http://dev.apollodata.com/core/fragments.html#unique-names @ https://www.cosmos.so/_next/static/chunks/1fnj5netqckvr.js:11

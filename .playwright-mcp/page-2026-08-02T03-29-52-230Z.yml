@@ -1,0 +1,20 @@
+- generic [active] [ref=e2]:
+  - alert [ref=e1]
+  - main [ref=e3]:
+    - generic [ref=e4]:
+      - link "MetalForge" [ref=e5] [cursor=pointer]:
+        - /url: /
+      - generic [ref=e11]:
+        - heading "Sign in to MetalForge" [level=1] [ref=e12]
+        - paragraph [ref=e13]: Continue with Google to open the editor.
+        - button "Continue with Google" [ref=e14]
+        - paragraph [ref=e20]:
+          - text: By continuing you agree to the
+          - link "Terms" [ref=e21] [cursor=pointer]:
+            - /url: /terms
+          - text: and
+          - link "Privacy Policy" [ref=e22] [cursor=pointer]:
+            - /url: /privacy
+          - text: .
+      - link "← Back to MetalForge" [ref=e24] [cursor=pointer]:
+        - /url: /
