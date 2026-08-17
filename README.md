@@ -235,6 +235,7 @@ These are known gaps, listed with their consequences.
 
 ## About
 
-Built by Terrell Blash ([@TerrellBlash](https://github.com/TerrellBlash)) while moving from iOS development into AI and backend engineering. The patterns here, ordered execution with recorded state, failure isolation, environment-driven configuration, and versioned prompts, are the ones that carry over.
+Built by Victor Blash ([@TerrellBlash](https://github.com/TerrellBlash)) while moving from iOS development into AI and backend engineering. The patterns here, ordered execution with recorded state, failure isolation, environment-driven configuration, and versioned prompts, are the ones that carry over.
 
-Built step by step rather than generated. The repository includes the study guides written alongside each phase, covering what was built, why, and what broke.
+Built step by step rather than generated, over seven phases from an empty folder to a deployed service.
+
