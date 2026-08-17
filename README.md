@@ -1,145 +1,240 @@
-# BARLY 🍸
+# leadflow
 
-**Your bar. Smarter.**
+A workflow automation backend that turns inbound lead webhooks into prioritized, AI-drafted follow-ups. A lead arrives, gets validated and stored, scored by rule, given a draft outreach email written by Claude, and announced in Slack. Every step's execution state is recorded and queryable.
 
-A nano-banana powered, on-device cocktail assistant that generates cocktails from ingredients you have on hand.
+**Live:** https://leadflow-ejqy.onrender.com/docs
 
-Scan what you have → make a great drink in under 60 seconds.
-
----
-
-## ✨ Core Features
-
-- **Ingredient Scanning** — Camera + manual input
-- **Cocktail Generation** — Ingredient-first discovery
-- **Smart Substitutions** — Don't have lime? Use lemon.
-- **Taste Controls** — Dial in sweet/strong to your preference
-- **Visual Pour Guide** — Never over-pour again
-- **Offline-First** — Works without internet
-
-## 📱 Platforms
-
-| Platform | Stack | Status |
-|----------|-------|--------|
-| iOS | SwiftUI + CoreML | 🚧 MVP in progress |
-| Android | Jetpack Compose + TFLite | 📋 Planned |
-D
-## 🏗️ Architecture
-
-```
-┌─────────────────────────────────────────────────────────┐
-│                      BARLY App                          │
-├─────────────────────────────────────────────────────────┤
-│  Views: Home → Scan → Results → Detail → Pour Guide    │
-├─────────────────────────────────────────────────────────┤
-│  State: AppState (ObservableObject)                     │
-├─────────────────────────────────────────────────────────┤
-│  Logic: FlavorEngine + SubstitutionEngine               │
-├─────────────────────────────────────────────────────────┤
-│  Data: CocktailDatabase (offline-first)                 │
-└─────────────────────────────────────────────────────────┘
-```
-
-## 🚀 Quick Start
-
-### iOS Development
-
-```bash
-cd ios/BarlyApp
-open BarlyApp.xcodeproj
-# or
-xed .
-```
-
-**Requirements:**
-- Xcode 15.0+
-- iOS 17.0+ deployment target
-- Swift 5.9+
-
-### Running Tests
-
-```bash
-cd ios/BarlyApp
-xcodebuild test -scheme BarlyApp -destination 'platform=iOS Simulator,name=iPhone 15 Pro'
-```
-
-## 📂 Project Structure
-
-```
-barly/
-├── README.md
-├── LICENSE
-├── .gitignore
-│
-├── docs/
-│   ├── PRD.md                 # Product requirements
-│   ├── UX_Flows.md            # User journey documentation
-│   ├── AI_Architecture.md    # On-device AI design
-│   ├── Sprint_Plan.md        # 6-week development plan
-│   └── Pitch_Deck.md         # Investor/pitch materials
-│
-├── design/
-│   ├── figma/
-│   │   ├── frames.json       # Screen definitions
-│   │   └── components.json   # Reusable components
-│   └── assets/               # Icons, images, etc.
-│
-├── ios/
-│   └── BarlyApp/             # SwiftUI application
-│
-├── android/
-│   └── app/                  # Jetpack Compose app (planned)
-│
-└── backend/
-    └── api/
-        └── openapi.yaml      # Optional API spec
-```
-
-## 🧪 Core User Loop
-
-1. **Home** — "What can I make?" with quick actions
-2. **Scan** — Capture or select ingredients
-3. **Results** — Cocktails you can make right now
-4. **Detail** — Recipe with taste adjustments
-5. **Pour** — Visual step-by-step guidance
-
-## 🎯 Design Philosophy
-
-- **Offline-first**: Everything works without internet
-- **Explainable AI**: Rules-based logic, not black-box ML
-- **Fast**: Sub-second response times on-device
-- **Respectful**: No accounts required, no data harvesting
-
-## 📋 Roadmap
-
-### MVP (Week 1-6)
-- [x] Core navigation flow
-- [x] Ingredient input (manual)
-- [x] Cocktail generation engine
-- [x] Taste sliders (sweet/strong)
-- [x] Substitution suggestions
-- [ ] Visual pour guide
-- [ ] Camera scanning
-- [ ] TestFlight beta
-
-### v1.1
-- [ ] Favorites & history
-- [ ] Advanced taste profiles
-- [ ] Ingredient inventory tracking
-
-### v2.0
-- [ ] Android launch
-- [ ] On-device vision classifier
-- [ ] Community recipes
-
-## 🤝 Contributing
-
-This is currently a solo project, but feedback is welcome! Open an issue for bug reports or feature requests.
-
-## 📄 License
-
-MIT License — see [LICENSE](LICENSE) for details.
+The service runs on Render's free tier and sleeps after about 15 minutes of inactivity. The first request after a sleep takes 30 to 60 seconds to wake it.
 
 ---
 
-**Built with 🍌 Nano-Banana AI**
+## The problem
+
+A small sales team gets leads from a website form. Someone has to notice each one, decide whether it matters, write a first email, and tell the team. At ten leads a week that is a minor chore. At a hundred it is a part-time job, and the leads that arrive on a Friday evening sit untouched until Monday.
+
+leadflow does the mechanical parts automatically and leaves the judgment call to a human. It scores the lead, drafts the email, and posts to Slack within about a second of the form submission. A person reads the draft, edits it, and sends it.
+
+The drafts are deliberately not sent automatically. See [Limitations](#limitations).
+
+---
+
+## Architecture
+
+```
+POST /leads
+    │
+    ▼
+┌─────────────────────────────────────────────┐
+│ FastAPI                                     │
+│  Pydantic validates the request body        │
+│  (rejects malformed email, missing fields)  │
+└──────────────────┬──────────────────────────┘
+                   ▼
+┌─────────────────────────────────────────────┐
+│ Postgres (SQLAlchemy)                       │
+│  lead persisted, id and timestamp assigned  │
+└──────────────────┬──────────────────────────┘
+                   ▼
+┌─────────────────────────────────────────────┐
+│ Orchestrator                                │
+│  opens a workflow_run row, then executes    │
+│  an ordered list of steps                   │
+│                                             │
+│   1. log_lead        record receipt         │
+│   2. tag_priority    rule-based scoring     │
+│   3. draft_outreach  Claude writes email    │
+│   4. notify_slack    post to #leads         │
+│                                             │
+│  current_step written before each step      │
+│  exceptions caught per run, recorded        │
+└──────────────────┬──────────────────────────┘
+                   ▼
+        ┌──────────┴──────────┐
+        ▼                     ▼
+   drafts table        Slack #leads channel
+   (content, model,
+    prompt_version)
+```
+
+### The step contract
+
+Every step is a function with the same signature:
+
+```python
+def step_name(lead: Lead, db: Session) -> None:
+    # do work
+    # raise on failure
+```
+
+Two arguments, no return value, raises on failure. The orchestrator does not know what any step does. It records which step is running, calls it, and catches anything that comes back up.
+
+The consequence: adding an integration means writing a function and appending one tuple to a list. `run_workflow` has not changed since it was written, across three subsequent integrations (rule-based scoring, an LLM call, an HTTP webhook).
+
+### Failure handling
+
+If a step raises, the orchestrator marks the run `failed`, records the exception message and the step name it died on, and returns. The HTTP request still returns 201 and the lead is still stored. A failed Slack post does not lose the lead.
+
+This was tested by injecting a fault into a step and confirming the run recorded `status: failed`, `current_step: tag_priority`, and the exception text, while the API stayed available.
+
+Every run is queryable at `GET /workflow_runs`:
+
+```json
+{
+  "id": 2,
+  "lead_id": 2,
+  "status": "failed",
+  "current_step": "tag_priority",
+  "started_at": "2026-07-07T00:53:42.989035",
+  "finished_at": "2026-07-07T00:53:42.998408",
+  "error_message": "simulated failure for testing"
+}
+```
+
+---
+
+## Endpoints
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/` | Service identity and a pointer to the docs |
+| GET | `/health` | Liveness check |
+| POST | `/leads` | Ingest a lead and run the workflow |
+| GET | `/leads` | List stored leads |
+| GET | `/workflow_runs` | Execution history with per-run status and errors |
+| GET | `/docs` | Interactive OpenAPI documentation, generated by FastAPI |
+
+### Example
+
+```bash
+curl -X POST 'https://leadflow-ejqy.onrender.com/leads' \
+  -H 'Content-Type: application/json' \
+  -d '{"name": "Priya Raman", "email": "priya@northwind.io", "company": "Northwind Systems"}'
+```
+
+Response:
+
+```json
+{
+  "id": 1,
+  "name": "Priya Raman",
+  "email": "priya@northwind.io",
+  "company": "Northwind Systems",
+  "status": "warm",
+  "created_at": "2026-08-09T21:42:53.563767"
+}
+```
+
+`status` was not supplied in the request. `tag_priority` set it during the workflow, and `notify_slack` read it when composing the Slack message. Steps share state through the lead object.
+
+---
+
+## The AI step
+
+`draft_outreach` sends the lead's name, company, and priority to Claude Haiku and stores the returned email.
+
+The prompt is a module-level constant, not an inline string, so it is diffable in version control and carries a version number. Every draft is stored with the model ID and the prompt version that produced it, which makes drafts from different prompts comparable.
+
+```
+drafts
+├── id
+├── lead_id         → leads.id
+├── content         the generated email
+├── model           "claude-haiku-4-5-20251001"
+├── prompt_version  "v1"
+└── created_at
+```
+
+The prompt constrains output to a 3-4 sentence body with no subject line, no signature, and no preamble, because the response is written directly to the database and any wrapper text would become part of the stored draft.
+
+### What the first version got wrong
+
+Prompt v1 produced this for a test lead:
+
+> I came across Brightpath Analytics and noticed you're working in the analytics space where data quality often becomes a bottleneck as teams scale. We've helped similar companies reduce their manual data validation work by about 40% through our platform.
+
+The prompt supplied three facts: name, company, and priority. It said nothing about a platform, nothing about other customers, and nothing about 40 percent. The model invented the statistic because cold outreach emails contain invented statistics.
+
+This is why drafts are stored for review rather than sent. It is also why prompt versions are recorded: a v2 prompt that forbids invented claims can be compared against v1 output on the same leads. That comparison has not been run yet, which is why it appears under Limitations rather than here.
+
+---
+
+## Stack
+
+Python 3.11, FastAPI, SQLAlchemy, Pydantic, Postgres, Anthropic API, Docker, Render.
+
+SQLite locally, Postgres in production. `database.py` reads `DATABASE_URL` from the environment and falls back to SQLite when it is unset, so the same code runs in both places without a branch. Swapping the database required changing one connection string and adding a driver. No model, schema, or query changed.
+
+---
+
+## Running it locally
+
+Requires Python 3.11 and an Anthropic API key. The Slack step needs an incoming webhook URL; without one that step fails and the run is marked failed, which is the intended behavior.
+
+```bash
+git clone https://github.com/TerrellBlash/leadflow.git
+cd leadflow
+
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+
+cp .env.example .env
+# fill in ANTHROPIC_API_KEY and SLACK_WEBHOOK_URL
+
+uvicorn main:app --reload
+```
+
+Then open http://localhost:8000/docs.
+
+Tables are created on startup. With no `DATABASE_URL` set, data goes to a local `leadflow.db` SQLite file.
+
+### Docker
+
+```bash
+docker build -t leadflow .
+docker run -p 8000:8000 --env-file .env -e PORT=8000 leadflow
+```
+
+---
+
+## Design decisions
+
+**Steps are a hardcoded list, not database rows.** A workflows table would allow different pipelines per lead source. There is one pipeline and one lead source, so the table would be infrastructure for a requirement that does not exist. The tradeoff is that changing the pipeline requires a deploy rather than a database update. Moving the list into a table is a contained change if a second pipeline is ever needed.
+
+**Drafts live in their own table rather than a column on the lead.** A draft is a generated artifact with its own lifecycle, and a lead may accumulate several as prompts change. Storing the model and prompt version alongside each draft is what makes evaluating a prompt change possible later. A column on `leads` would have been simpler and would have made that comparison impossible.
+
+**The workflow runs synchronously inside the request.** The HTTP response waits for the Claude call, which adds roughly a second. In exchange, the caller learns immediately whether the lead was accepted, and there is no queue to operate. This is the wrong tradeoff at higher volume. See Limitations.
+
+**SQLAlchemy rather than raw SQL.** The cost is a layer of abstraction. The benefit showed up at deploy time, when moving from SQLite to Postgres was a configuration change instead of a rewrite.
+
+---
+
+## Limitations
+
+These are known gaps, listed with their consequences.
+
+**The workflow blocks the HTTP response.** A slow or hanging Claude call delays the caller. At current volume this is a second of latency. Under load it would occupy workers and degrade the whole service. Moving step execution to a background task or a queue is the fix.
+
+**Prompt v1 fabricates specifics.** Documented above. A v2 prompt exists as a plan, not as code, and no comparison between versions has been run. The drafts table makes that comparison possible; it has not been done.
+
+**No evaluation of draft quality.** Nothing scores the generated emails, and nothing correlates them with real outcomes. Any claim about draft quality would be an opinion. Building a scorer is straightforward; validating that the scorer predicts replies is the hard part and is not attempted here.
+
+**No token or cost tracking.** Per-draft cost is a fraction of a cent, but the system does not record it. `max_tokens` caps response length, which caps the worst case per call and nothing more.
+
+**Retries do not exist.** A transient network failure permanently fails a run. There is no retry with backoff, and steps are not idempotent, so a naive retry could send a duplicate Slack message. Adding retries requires idempotency keys first.
+
+**Schema changes require dropping tables.** `Base.metadata.create_all()` creates missing tables and never alters existing ones. Adding a column to a table that already has data means dropping it. Alembic is the correct tool and is not installed.
+
+**No authentication on the webhook.** `POST /leads` accepts anything. Suitable for a demo, not for a public endpoint that stores contact information.
+
+**No `GET /drafts` endpoint.** Drafts are readable only through direct database access. The Pydantic schema exists; the route does not.
+
+**Tests are manual.** Endpoints were exercised through the OpenAPI docs and failure paths through deliberate fault injection. There is no pytest suite.
+
+---
+
+## About
+
+Built by Terrell Blash ([@TerrellBlash](https://github.com/TerrellBlash)) while moving from iOS development into AI and backend engineering. The patterns here, ordered execution with recorded state, failure isolation, environment-driven configuration, and versioned prompts, are the ones that carry over.
+
+Built step by step rather than generated. The repository includes the study guides written alongside each phase, covering what was built, why, and what broke.
